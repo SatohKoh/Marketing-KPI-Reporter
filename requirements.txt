@@ -1,0 +1,7 @@
+functions-framework==3.*
+google-cloud-bigquery==3.*
+openai==1.*
+google-cloud-aiplatform==1.*
+vertexai==1.*
+requests==2.*
+flask==3.*
