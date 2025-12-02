@@ -1,4 +1,4 @@
-"""AI Reporter for generating marketing reports using OpenAI or Vertex AI."""
+"""AI Reporter for generating GA4 reports using OpenAI or Vertex AI."""
 
 import json
 import os
@@ -10,7 +10,7 @@ from vertexai.generative_models import GenerativeModel
 
 
 class AIReporter:
-    """Reporter that uses AI to generate marketing insights and reports."""
+    """Reporter that uses AI to generate GA4 insights and reports."""
 
     def __init__(
         self,
@@ -46,10 +46,10 @@ class AIReporter:
     def generate_report(
         self, analysis_data: dict[str, Any], language: str = "ja"
     ) -> str:
-        """Generate a marketing report from analysis data.
+        """Generate a GA4 report from analysis data.
 
         Args:
-            analysis_data: Dictionary containing KPI analysis from all sources
+            analysis_data: Dictionary containing GA4 KPI analysis
             language: Language for the report ('ja' for Japanese, 'en' for English)
 
         Returns:
@@ -66,7 +66,7 @@ class AIReporter:
         """Build the prompt for AI report generation.
 
         Args:
-            analysis_data: Dictionary containing KPI analysis
+            analysis_data: Dictionary containing GA4 KPI analysis
             language: Target language for the report
 
         Returns:
@@ -75,20 +75,20 @@ class AIReporter:
         data_json = json.dumps(analysis_data, indent=2, default=str, ensure_ascii=False)
 
         if language == "ja":
-            prompt = f"""あなたはマーケティングアナリストです。以下のマーケティングKPIデータを分析し、日次レポートを作成してください。
+            prompt = f"""あなたはウェブアナリストです。以下のGA4（Google Analytics 4）のKPIデータを分析し、日次レポートを作成してください。
 
 ## データ
 {data_json}
 
 ## レポート要件
 1. エグゼクティブサマリー（3-4文で全体の状況を要約）
-2. 各チャネルのパフォーマンス分析
-   - GA4（ウェブサイトトラフィック）
-   - Google Ads（広告パフォーマンス）
-   - Search Console（SEOパフォーマンス）
-   - HubSpot（リード獲得・CRM）
-3. 重要なインサイトと推奨アクション
-4. 注意が必要な指標（あれば）
+2. 主要指標の分析
+   - ユーザー数・セッション数の推移
+   - ページビュー・直帰率
+   - コンバージョン・収益（データがある場合）
+3. 前日比のトレンド分析
+4. 重要なインサイトと推奨アクション
+5. 注意が必要な指標（あれば）
 
 ## フォーマット
 - Slackに投稿するため、マークダウン形式で記述
@@ -98,20 +98,20 @@ class AIReporter:
 
 レポートを日本語で作成してください。"""
         else:
-            prompt = f"""You are a marketing analyst. Analyze the following marketing KPI data and create a daily report.
+            prompt = f"""You are a web analyst. Analyze the following GA4 (Google Analytics 4) KPI data and create a daily report.
 
 ## Data
 {data_json}
 
 ## Report Requirements
 1. Executive Summary (summarize the overall situation in 3-4 sentences)
-2. Performance analysis for each channel
-   - GA4 (Website Traffic)
-   - Google Ads (Advertising Performance)
-   - Search Console (SEO Performance)
-   - HubSpot (Lead Generation & CRM)
-3. Key insights and recommended actions
-4. Metrics requiring attention (if any)
+2. Key metrics analysis
+   - Users and sessions trends
+   - Pageviews and bounce rate
+   - Conversions and revenue (if data available)
+3. Day-over-day trend analysis
+4. Key insights and recommended actions
+5. Metrics requiring attention (if any)
 
 ## Format
 - Use markdown format for Slack posting
@@ -137,7 +137,7 @@ Please create the report in English."""
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert marketing analyst who creates clear, actionable daily reports for marketing teams.",
+                    "content": "You are an expert web analyst who creates clear, actionable daily GA4 reports.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -169,10 +169,10 @@ Please create the report in English."""
     def generate_alert_message(
         self, analysis_data: dict[str, Any], thresholds: dict[str, Any] | None = None
     ) -> str | None:
-        """Generate alert message if any metrics exceed thresholds.
+        """Generate alert message if any GA4 metrics exceed thresholds.
 
         Args:
-            analysis_data: Dictionary containing KPI analysis
+            analysis_data: Dictionary containing GA4 KPI analysis
             thresholds: Dictionary of metric thresholds for alerts
 
         Returns:
@@ -181,36 +181,22 @@ Please create the report in English."""
         if thresholds is None:
             thresholds = {
                 "bounce_rate_max": 80,
-                "ctr_min": 1,
-                "roas_min": 1,
-                "avg_position_max": 30,
+                "sessions_min": 100,
             }
 
         alerts = []
 
-        ga4_summary = analysis_data.get("ga4", {}).get("summary", {})
-        bounce_rate = ga4_summary.get("avg_bounce_rate", 0)
+        summary = analysis_data.get("summary", {})
+        bounce_rate = summary.get("avg_bounce_rate", 0)
         if bounce_rate > thresholds.get("bounce_rate_max", 80):
             alerts.append(
                 f":warning: GA4: 直帰率が高くなっています ({bounce_rate}%)"
             )
 
-        ads_summary = analysis_data.get("google_ads", {}).get("summary", {})
-        ctr = ads_summary.get("avg_ctr", 0)
-        if ctr < thresholds.get("ctr_min", 1):
-            alerts.append(f":warning: Google Ads: CTRが低下しています ({ctr}%)")
-
-        roas = ads_summary.get("roas", 0)
-        if roas < thresholds.get("roas_min", 1):
+        total_sessions = summary.get("total_sessions", 0)
+        if total_sessions < thresholds.get("sessions_min", 100):
             alerts.append(
-                f":rotating_light: Google Ads: ROASが1を下回っています ({roas})"
-            )
-
-        sc_summary = analysis_data.get("search_console", {}).get("summary", {})
-        avg_position = sc_summary.get("avg_position", 0)
-        if avg_position > thresholds.get("avg_position_max", 30):
-            alerts.append(
-                f":warning: Search Console: 平均掲載順位が低下しています ({avg_position})"
+                f":warning: GA4: セッション数が少なくなっています ({total_sessions})"
             )
 
         if alerts:

@@ -1,12 +1,12 @@
 #!/bin/bash
-# Deployment script for Marketing KPI Reporter Cloud Function
+# Deployment script for GA4 KPI Reporter Cloud Function
 
 set -e
 
 # Configuration
 PROJECT_ID="${GCP_PROJECT_ID:-your-project-id}"
 REGION="${GCP_REGION:-us-central1}"
-FUNCTION_NAME="${FUNCTION_NAME:-marketing-kpi-report}"
+FUNCTION_NAME="${FUNCTION_NAME:-ga4-kpi-report}"
 RUNTIME="python311"
 MEMORY="512MB"
 TIMEOUT="540s"
@@ -17,7 +17,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== Marketing KPI Reporter Deployment ===${NC}"
+echo -e "${GREEN}=== GA4 KPI Reporter Deployment ===${NC}"
 
 # Check if gcloud is installed
 if ! command -v gcloud &> /dev/null; then
@@ -57,9 +57,6 @@ echo -e "${GREEN}Function URL: ${FUNCTION_URL}${NC}"
 
 echo -e "\n${YELLOW}Note: Remember to set the following environment variables in Cloud Console:${NC}"
 echo "  - GA4_DATASET"
-echo "  - GOOGLE_ADS_DATASET"
-echo "  - SEARCH_CONSOLE_DATASET"
-echo "  - HUBSPOT_DATASET"
 echo "  - AI_PROVIDER (openai or vertexai)"
 echo "  - OPENAI_API_KEY (if using OpenAI)"
 echo "  - SLACK_WEBHOOK_URL or SLACK_BOT_TOKEN"

@@ -1,14 +1,11 @@
-"""Cloud Functions entry point for Marketing KPI Reporter.
+"""Cloud Functions entry point for GA4 KPI Reporter.
 
 This module provides the entry point for Google Cloud Functions to execute
-the daily marketing KPI analysis and reporting workflow.
+the daily GA4 KPI analysis and reporting workflow.
 
 Environment Variables Required:
     GCP_PROJECT_ID: Google Cloud project ID
     GA4_DATASET: BigQuery dataset name for GA4 data
-    GOOGLE_ADS_DATASET: BigQuery dataset name for Google Ads data
-    SEARCH_CONSOLE_DATASET: BigQuery dataset name for Search Console data
-    HUBSPOT_DATASET: BigQuery dataset name for HubSpot data
     AI_PROVIDER: AI provider to use ('openai' or 'vertexai')
     OPENAI_API_KEY: OpenAI API key (required if AI_PROVIDER is 'openai')
     SLACK_WEBHOOK_URL: Slack incoming webhook URL
@@ -43,16 +40,7 @@ def get_config() -> dict[str, Any]:
     """
     return {
         "gcp_project_id": os.environ.get("GCP_PROJECT_ID"),
-        "dataset_config": {
-            "ga4_dataset": os.environ.get("GA4_DATASET", "analytics_XXXXXXXXX"),
-            "google_ads_dataset": os.environ.get(
-                "GOOGLE_ADS_DATASET", "google_ads_transfer"
-            ),
-            "search_console_dataset": os.environ.get(
-                "SEARCH_CONSOLE_DATASET", "searchconsole_data"
-            ),
-            "hubspot_dataset": os.environ.get("HUBSPOT_DATASET", "hubspot_data"),
-        },
+        "ga4_dataset": os.environ.get("GA4_DATASET", "analytics_XXXXXXXXX"),
         "ai_provider": os.environ.get("AI_PROVIDER", "openai"),
         "openai_api_key": os.environ.get("OPENAI_API_KEY"),
         "slack_webhook_url": os.environ.get("SLACK_WEBHOOK_URL"),
@@ -77,6 +65,9 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     if not config.get("gcp_project_id"):
         errors.append("GCP_PROJECT_ID is required")
 
+    if not config.get("ga4_dataset"):
+        errors.append("GA4_DATASET is required")
+
     if not config.get("slack_webhook_url") and not config.get("slack_bot_token"):
         errors.append("Either SLACK_WEBHOOK_URL or SLACK_BOT_TOKEN is required")
 
@@ -88,7 +79,7 @@ def validate_config(config: dict[str, Any]) -> list[str]:
 
 
 def run_kpi_analysis(config: dict[str, Any]) -> dict[str, Any]:
-    """Run the KPI analysis workflow.
+    """Run the GA4 KPI analysis workflow.
 
     Args:
         config: Configuration dictionary
@@ -96,20 +87,20 @@ def run_kpi_analysis(config: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Dictionary containing analysis results and report
     """
-    logger.info("Starting KPI analysis workflow")
+    logger.info("Starting GA4 KPI analysis workflow")
 
-    logger.info("Fetching metrics from BigQuery")
+    logger.info("Fetching GA4 metrics from BigQuery")
     bq_client = BigQueryClient(
         project_id=config["gcp_project_id"],
-        dataset_config=config["dataset_config"],
+        ga4_dataset=config["ga4_dataset"],
     )
-    metrics = bq_client.get_all_metrics()
-    logger.info("Successfully fetched metrics from all data sources")
+    ga4_metrics = bq_client.get_ga4_metrics()
+    logger.info("Successfully fetched GA4 metrics")
 
-    logger.info("Analyzing KPIs")
-    analyzer = KPIAnalyzer(metrics)
-    analysis = analyzer.get_full_analysis()
-    logger.info("KPI analysis completed")
+    logger.info("Analyzing GA4 KPIs")
+    analyzer = KPIAnalyzer(ga4_metrics)
+    analysis = analyzer.analyze()
+    logger.info("GA4 KPI analysis completed")
 
     logger.info(f"Generating report using {config['ai_provider']}")
     ai_reporter = AIReporter(
@@ -126,7 +117,7 @@ def run_kpi_analysis(config: dict[str, Any]) -> dict[str, Any]:
     alert_message = ai_reporter.generate_alert_message(analysis)
 
     return {
-        "metrics": metrics,
+        "metrics": ga4_metrics,
         "analysis": analysis,
         "report_text": report_text,
         "alert_message": alert_message,
@@ -250,7 +241,7 @@ def marketing_kpi_report_pubsub(cloud_event: Any) -> None:
 
 def main() -> None:
     """Main function for local testing."""
-    print("Running Marketing KPI Reporter locally...")
+    print("Running GA4 KPI Reporter locally...")
 
     config = get_config()
 
@@ -260,9 +251,6 @@ def main() -> None:
         print("\nPlease set the following environment variables:")
         print("  - GCP_PROJECT_ID")
         print("  - GA4_DATASET")
-        print("  - GOOGLE_ADS_DATASET")
-        print("  - SEARCH_CONSOLE_DATASET")
-        print("  - HUBSPOT_DATASET")
         print("  - AI_PROVIDER (openai or vertexai)")
         print("  - OPENAI_API_KEY (if using OpenAI)")
         print("  - SLACK_WEBHOOK_URL or SLACK_BOT_TOKEN")
