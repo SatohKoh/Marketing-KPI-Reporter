@@ -5,8 +5,7 @@ import os
 from typing import Any
 
 import openai
-import vertexai
-from vertexai.generative_models import GenerativeModel
+from google import genai
 
 
 class AIReporter:
@@ -38,8 +37,12 @@ class AIReporter:
             self.gcp_project_id = gcp_project_id or os.environ.get("GCP_PROJECT_ID")
             if not self.gcp_project_id:
                 raise ValueError("GCP project ID is required for Vertex AI provider")
-            vertexai.init(project=self.gcp_project_id, location=gcp_location)
-            self.model = GenerativeModel("gemini-1.5-pro")
+            self.client = genai.Client(
+                vertexai=True,
+                project=self.gcp_project_id,
+                location=gcp_location,
+            )
+            self.model_name = os.environ.get("GENAI_MODEL_NAME", "gemini-2.0-flash")
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
@@ -148,7 +151,7 @@ Please create the report in English."""
         return response.choices[0].message.content
 
     def _generate_with_vertexai(self, prompt: str) -> str:
-        """Generate report using Vertex AI Gemini.
+        """Generate report using Vertex AI Gemini via google-genai.
 
         Args:
             prompt: The prompt for report generation
@@ -156,9 +159,10 @@ Please create the report in English."""
         Returns:
             Generated report text
         """
-        response = self.model.generate_content(
-            prompt,
-            generation_config={
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config={
                 "max_output_tokens": 2000,
                 "temperature": 0.7,
             },
