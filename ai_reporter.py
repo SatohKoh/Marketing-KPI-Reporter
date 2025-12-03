@@ -1,4 +1,4 @@
-"""AI Reporter for generating GA4 reports using OpenAI or Vertex AI."""
+"""AI Reporter for generating GA4 and Google Ads reports using OpenAI or Vertex AI."""
 
 import json
 import os
@@ -9,7 +9,7 @@ from google import genai
 
 
 class AIReporter:
-    """Reporter that uses AI to generate GA4 insights and reports."""
+    """Reporter that uses AI to generate GA4 and Google Ads insights and reports."""
 
     def __init__(
         self,
@@ -49,10 +49,10 @@ class AIReporter:
     def generate_report(
         self, analysis_data: dict[str, Any], language: str = "ja"
     ) -> str:
-        """Generate a GA4 report from analysis data.
+        """Generate a marketing report from analysis data.
 
         Args:
-            analysis_data: Dictionary containing GA4 KPI analysis
+            analysis_data: Dictionary containing GA4 and Google Ads KPI analysis
             language: Language for the report ('ja' for Japanese, 'en' for English)
 
         Returns:
@@ -69,16 +69,22 @@ class AIReporter:
         """Build the prompt for AI report generation.
 
         Args:
-            analysis_data: Dictionary containing GA4 KPI analysis
+            analysis_data: Dictionary containing GA4 and Google Ads KPI analysis
             language: Target language for the report
 
         Returns:
             Formatted prompt string
         """
         data_json = json.dumps(analysis_data, indent=2, default=str, ensure_ascii=False)
+        has_google_ads = "google_ads" in analysis_data
 
         if language == "ja":
-            prompt = f"""あなたはウェブアナリストです。以下のGA4（Google Analytics 4）のKPIデータを分析し、日次レポートを作成してください。
+            ads_section = """
+   - Google Ads: インプレッション・クリック・CTR
+   - 広告費用・CPC・コンバージョン
+   - ROAS（広告費用対効果）""" if has_google_ads else ""
+
+            prompt = f"""あなたはマーケティングアナリストです。以下のGA4（Google Analytics 4）{"とGoogle Ads" if has_google_ads else ""}のKPIデータを分析し、日次レポートを作成してください。
 
 ## データ
 {data_json}
@@ -86,9 +92,9 @@ class AIReporter:
 ## レポート要件
 1. エグゼクティブサマリー（3-4文で全体の状況を要約）
 2. 主要指標の分析
-   - ユーザー数・セッション数の推移
+   - GA4: ユーザー数・セッション数の推移
    - ページビュー・直帰率
-   - コンバージョン・収益（データがある場合）
+   - コンバージョン・収益（データがある場合）{ads_section}
 3. 前日比のトレンド分析
 4. 重要なインサイトと推奨アクション
 5. 注意が必要な指標（あれば）
@@ -101,7 +107,12 @@ class AIReporter:
 
 レポートを日本語で作成してください。"""
         else:
-            prompt = f"""You are a web analyst. Analyze the following GA4 (Google Analytics 4) KPI data and create a daily report.
+            ads_section = """
+   - Google Ads: Impressions, clicks, CTR
+   - Ad spend, CPC, conversions
+   - ROAS (Return on Ad Spend)""" if has_google_ads else ""
+
+            prompt = f"""You are a marketing analyst. Analyze the following GA4 (Google Analytics 4) {"and Google Ads " if has_google_ads else ""}KPI data and create a daily report.
 
 ## Data
 {data_json}
@@ -109,9 +120,9 @@ class AIReporter:
 ## Report Requirements
 1. Executive Summary (summarize the overall situation in 3-4 sentences)
 2. Key metrics analysis
-   - Users and sessions trends
+   - GA4: Users and sessions trends
    - Pageviews and bounce rate
-   - Conversions and revenue (if data available)
+   - Conversions and revenue (if data available){ads_section}
 3. Day-over-day trend analysis
 4. Key insights and recommended actions
 5. Metrics requiring attention (if any)
@@ -173,10 +184,10 @@ Please create the report in English."""
     def generate_alert_message(
         self, analysis_data: dict[str, Any], thresholds: dict[str, Any] | None = None
     ) -> str | None:
-        """Generate alert message if any GA4 metrics exceed thresholds.
+        """Generate alert message if any metrics exceed thresholds.
 
         Args:
-            analysis_data: Dictionary containing GA4 KPI analysis
+            analysis_data: Dictionary containing GA4 and Google Ads KPI analysis
             thresholds: Dictionary of metric thresholds for alerts
 
         Returns:
@@ -186,22 +197,42 @@ Please create the report in English."""
             thresholds = {
                 "bounce_rate_max": 80,
                 "sessions_min": 100,
+                "ctr_min": 1,
+                "roas_min": 1,
             }
 
         alerts = []
 
-        summary = analysis_data.get("summary", {})
-        bounce_rate = summary.get("avg_bounce_rate", 0)
+        ga4_data = analysis_data.get("ga4", {})
+        ga4_summary = ga4_data.get("summary", {})
+
+        bounce_rate = ga4_summary.get("avg_bounce_rate", 0)
         if bounce_rate > thresholds.get("bounce_rate_max", 80):
             alerts.append(
                 f":warning: GA4: 直帰率が高くなっています ({bounce_rate}%)"
             )
 
-        total_sessions = summary.get("total_sessions", 0)
+        total_sessions = ga4_summary.get("total_sessions", 0)
         if total_sessions < thresholds.get("sessions_min", 100):
             alerts.append(
                 f":warning: GA4: セッション数が少なくなっています ({total_sessions})"
             )
+
+        google_ads_data = analysis_data.get("google_ads", {})
+        if google_ads_data:
+            ads_summary = google_ads_data.get("summary", {})
+
+            ctr = ads_summary.get("avg_ctr", 0)
+            if ctr < thresholds.get("ctr_min", 1) and ads_summary.get("total_impressions", 0) > 0:
+                alerts.append(
+                    f":warning: Google Ads: CTRが低くなっています ({ctr}%)"
+                )
+
+            roas = ads_summary.get("roas", 0)
+            if roas < thresholds.get("roas_min", 1) and ads_summary.get("total_cost", 0) > 0:
+                alerts.append(
+                    f":warning: Google Ads: ROASが1未満です ({roas})"
+                )
 
         if alerts:
             return "\n".join(
